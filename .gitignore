@@ -6,6 +6,7 @@ node_modules/
 *.jpg
 *.html
 *.xlsx
+*.txt
 *.json.bak
 products.json
 scraped_data.json
