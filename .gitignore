@@ -1,0 +1,14 @@
+node_modules/
+.env
+*.log
+*.png
+*.jpeg
+*.jpg
+*.html
+*.xlsx
+*.json.bak
+products.json
+scraped_data.json
+product_links.json
+upload_log.txt
+upload_log_fixed.txt
