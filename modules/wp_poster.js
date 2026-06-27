@@ -42,54 +42,26 @@ async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass) {
             }
 
             if (products && products.length > 0) {
-                let scoredProducts = [];
+                // Filter out products that don't have images
+                const productsWithImages = products.filter(p => 
+                    p.featured_media &&
+                    p._embedded &&
+                    p._embedded['wp:featuredmedia'] &&
+                    p._embedded['wp:featuredmedia'][0]
+                );
 
-                for (const product of products) {
-                    const productTitle = product.title.rendered.toLowerCase();
-                    let score = 0;
+                if (productsWithImages.length > 0) {
+                    // 100% Random selection from all valid search results!
+                    // This guarantees we don't get the same image if there are multiple products in the category.
+                    const randomIndex = Math.floor(Math.random() * productsWithImages.length);
+                    const selected = productsWithImages[randomIndex];
 
-                    const isProductYoyo = productTitle.includes('โยโย่') || productTitle.includes('yoyo');
-                    const isProductHolder = productTitle.includes('กรอบ') || productTitle.includes('ซอง') || productTitle.includes('cardholder');
-                    const isProductCard = (productTitle.includes('บัตร') || productTitle.includes('card')) && !isProductHolder && !isProductYoyo;
-                    const isProductLanyard = productTitle.includes('สาย') || productTitle.includes('สายคล้อง') || productTitle.includes('lanyard');
-
-                    if (hasYoyo && isProductYoyo) score += 15;
-                    if (!hasYoyo && isProductYoyo) score -= 15;
-                    if (hasHolder && isProductHolder) score += 15;
-                    if (!hasHolder && isProductHolder) score -= 15;
-                    if (hasCard && isProductCard) score += 15;
-                    if (!hasCard && isProductCard) score -= 15;
-                    if (hasLanyard && isProductLanyard) score += 15;
-                    if (!hasLanyard && isProductLanyard) score -= 15;
-
-                    if (kw.includes('บัตรพนักงาน') && productTitle.includes('บัตรพนักงาน')) score += 20;
-                    if (kw.includes('สายคล้องคอ') && productTitle.includes('สายคล้องคอ')) score += 20;
-                    if (kw.includes('บัตรพลาสติก') && productTitle.includes('บัตรพลาสติก')) score += 20;
-
-                    scoredProducts.push({ product, score });
-                }
-
-                // Sort by score descending
-                scoredProducts.sort((a, b) => b.score - a.score);
-                
-                // Get the highest score
-                const highestScore = scoredProducts[0].score;
-                
-                // Filter all products that have the highest score (or close to it) to add variety
-                const topMatches = scoredProducts.filter(p => p.score >= highestScore - 5);
-                
-                // Randomly select one from the top matches
-                const randomIndex = Math.floor(Math.random() * topMatches.length);
-                const selected = topMatches[randomIndex].product;
-
-                if (
-                    selected.featured_media &&
-                    selected._embedded &&
-                    selected._embedded['wp:featuredmedia'] &&
-                    selected._embedded['wp:featuredmedia'][0]
-                ) {
                     mediaId = selected.featured_media;
                     imageUrl = selected._embedded['wp:featuredmedia'][0].source_url;
+                    
+                    console.log(`Selected random image from ${productsWithImages.length} available products. Product: ${selected.title.rendered}`);
+                } else {
+                    console.log('Found products but none had featured images. Using default.');
                 }
             }
         } catch (imgErr) {
