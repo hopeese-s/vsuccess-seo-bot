@@ -17,56 +17,79 @@ async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass) {
             const hasHolder = kw.includes('กรอบ') || kw.includes('ซอง') || kw.includes('cardholder') || kw.includes('ใส่บัตร');
             const hasCard = kw.includes('บัตร') || kw.includes('card') || kw.includes('pvc');
             const hasLanyard = kw.includes('สาย') || kw.includes('สายคล้อง') || kw.includes('lanyard');
-
-            const searchRes = await fetch(
+            
+            // Search with the full keyword first
+            let searchRes = await fetch(
                 `${baseUrl}/wp-json/wp/v2/products?search=${encodeURIComponent(keyword)}&_embed=wp:featuredmedia&per_page=30`,
                 { headers: { 'User-Agent': 'VSEOBot/1.0' } }
             );
+            
+            let products = await searchRes.json();
+            
+            // Fallback: If no products found, search with a generic term
+            if (!products || products.length === 0) {
+                let fallbackTerm = 'สินค้า';
+                if (hasLanyard) fallbackTerm = 'สายคล้อง';
+                else if (hasCard) fallbackTerm = 'บัตร';
+                else if (hasHolder) fallbackTerm = 'กรอบ';
+                else if (hasYoyo) fallbackTerm = 'โยโย่';
+                
+                searchRes = await fetch(
+                    `${baseUrl}/wp-json/wp/v2/products?search=${encodeURIComponent(fallbackTerm)}&_embed=wp:featuredmedia&per_page=30`,
+                    { headers: { 'User-Agent': 'VSEOBot/1.0' } }
+                );
+                products = await searchRes.json();
+            }
 
-            if (searchRes.ok) {
-                const products = await searchRes.json();
-                if (products && products.length > 0) {
-                    let bestMatch = null;
-                    let highestScore = -1;
+            if (products && products.length > 0) {
+                let scoredProducts = [];
 
-                    for (const product of products) {
-                        const productTitle = product.title.rendered.toLowerCase();
-                        let score = 0;
+                for (const product of products) {
+                    const productTitle = product.title.rendered.toLowerCase();
+                    let score = 0;
 
-                        const isProductYoyo = productTitle.includes('โยโย่') || productTitle.includes('yoyo');
-                        const isProductHolder = productTitle.includes('กรอบ') || productTitle.includes('ซอง') || productTitle.includes('cardholder');
-                        const isProductCard = (productTitle.includes('บัตร') || productTitle.includes('card')) && !isProductHolder && !isProductYoyo;
-                        const isProductLanyard = productTitle.includes('สาย') || productTitle.includes('สายคล้อง') || productTitle.includes('lanyard');
+                    const isProductYoyo = productTitle.includes('โยโย่') || productTitle.includes('yoyo');
+                    const isProductHolder = productTitle.includes('กรอบ') || productTitle.includes('ซอง') || productTitle.includes('cardholder');
+                    const isProductCard = (productTitle.includes('บัตร') || productTitle.includes('card')) && !isProductHolder && !isProductYoyo;
+                    const isProductLanyard = productTitle.includes('สาย') || productTitle.includes('สายคล้อง') || productTitle.includes('lanyard');
 
-                        if (hasYoyo && isProductYoyo) score += 15;
-                        if (!hasYoyo && isProductYoyo) score -= 15;
-                        if (hasHolder && isProductHolder) score += 15;
-                        if (!hasHolder && isProductHolder) score -= 15;
-                        if (hasCard && isProductCard) score += 15;
-                        if (!hasCard && isProductCard) score -= 15;
-                        if (hasLanyard && isProductLanyard) score += 15;
-                        if (!hasLanyard && isProductLanyard) score -= 15;
+                    if (hasYoyo && isProductYoyo) score += 15;
+                    if (!hasYoyo && isProductYoyo) score -= 15;
+                    if (hasHolder && isProductHolder) score += 15;
+                    if (!hasHolder && isProductHolder) score -= 15;
+                    if (hasCard && isProductCard) score += 15;
+                    if (!hasCard && isProductCard) score -= 15;
+                    if (hasLanyard && isProductLanyard) score += 15;
+                    if (!hasLanyard && isProductLanyard) score -= 15;
 
-                        if (kw.includes('บัตรพนักงาน') && productTitle.includes('บัตรพนักงาน')) score += 20;
-                        if (kw.includes('สายคล้องคอ') && productTitle.includes('สายคล้องคอ')) score += 20;
-                        if (kw.includes('บัตรพลาสติก') && productTitle.includes('บัตรพลาสติก')) score += 20;
+                    if (kw.includes('บัตรพนักงาน') && productTitle.includes('บัตรพนักงาน')) score += 20;
+                    if (kw.includes('สายคล้องคอ') && productTitle.includes('สายคล้องคอ')) score += 20;
+                    if (kw.includes('บัตรพลาสติก') && productTitle.includes('บัตรพลาสติก')) score += 20;
 
-                        if (score > highestScore) {
-                            highestScore = score;
-                            bestMatch = product;
-                        }
-                    }
+                    scoredProducts.push({ product, score });
+                }
 
-                    const selected = bestMatch || products[0];
-                    if (
-                        selected.featured_media &&
-                        selected._embedded &&
-                        selected._embedded['wp:featuredmedia'] &&
-                        selected._embedded['wp:featuredmedia'][0]
-                    ) {
-                        mediaId = selected.featured_media;
-                        imageUrl = selected._embedded['wp:featuredmedia'][0].source_url;
-                    }
+                // Sort by score descending
+                scoredProducts.sort((a, b) => b.score - a.score);
+                
+                // Get the highest score
+                const highestScore = scoredProducts[0].score;
+                
+                // Filter all products that have the highest score (or close to it) to add variety
+                const topMatches = scoredProducts.filter(p => p.score >= highestScore - 5);
+                
+                // Randomly select one from the top matches
+                const randomIndex = Math.floor(Math.random() * topMatches.length);
+                const selected = topMatches[randomIndex].product;
+
+                if (
+                    selected.featured_media &&
+                    selected._embedded &&
+                    selected._embedded['wp:featuredmedia'] &&
+                    selected._embedded['wp:featuredmedia'][0]
+                ) {
+                    mediaId = selected.featured_media;
+                    imageUrl = selected._embedded['wp:featuredmedia'][0].source_url;
                 }
             }
         } catch (imgErr) {
