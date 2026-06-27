@@ -149,6 +149,9 @@ if (process.argv.includes('--manual')) {
                             } else if (text === 'เมนู') {
                                 const helpText = `📱 คำสั่งควบคุมบอท SEO:\n\n1️⃣ พิมพ์ "โพสต์คิวถัดไป" - ดึงคีย์เวิร์ดในตารางค้างอยู่มาโพสต์ทันที\n2️⃣ พิมพ์ "เขียนบทความ: [คีย์เวิร์ด]" - สั่งเขียนคีย์เวิร์ดด่วนนอกตารางทันที`;
                                 await replyToLine(replyToken, helpText, LINE_CHANNEL_ACCESS_TOKEN);
+                            } else {
+                                const helpText = `❓ บอทไม่เข้าใจคำสั่งครับ\n\n📱 คำสั่งที่รองรับ:\n1️⃣ พิมพ์ "โพสต์คิวถัดไป"\n2️⃣ พิมพ์ "เขียนบทความ: [คีย์เวิร์ด]"\n(เช่น เขียนบทความ: สายคล้องคอ)`;
+                                await replyToLine(replyToken, helpText, LINE_CHANNEL_ACCESS_TOKEN);
                             }
                         }
                     }
