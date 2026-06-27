@@ -1,8 +1,10 @@
+const path = require('path');
 const fs = require('fs');
 const csv = require('csv-parser');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 
-const CSV_FILE = 'content_calendar.csv';
+// Use absolute path so it works on Railway too
+const CSV_FILE = path.join(__dirname, '..', 'content_calendar.csv');
 
 // Read all rows
 function readCalendar() {
@@ -29,14 +31,10 @@ async function writeCalendar(rows) {
     await csvWriter.writeRecords(rows);
 }
 
-// Get next pending keyword for today or earlier
+// Get next pending keyword
 async function getNextPendingKeyword() {
     const rows = await readCalendar();
-    
-    // Simple logic: find first row where Status is 'Pending'
-    // You could also filter by Date if you only want to process strictly today's.
     const pendingIndex = rows.findIndex(row => row.Status === 'Pending');
-    
     if (pendingIndex !== -1) {
         return {
             row: rows[pendingIndex],
