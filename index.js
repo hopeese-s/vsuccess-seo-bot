@@ -10,9 +10,9 @@ if (!globalThis.fetch) {
 require('dotenv').config();
 const cron = require('node-cron');
 const { generateArticle } = require('./modules/seo_generator');
-const { postToWordPress } = require('./modules/wp_poster');
+const { postToWordPress, getLatestPost } = require('./modules/wp_poster');
 const { sendNotification, replyToLine } = require('./modules/line_notifier');
-const { getNextPendingKeyword, markKeywordAsDone, markKeywordAsFailed } = require('./modules/scheduler');
+const { getNextPendingKeyword, markKeywordAsDone, markKeywordAsFailed, getQueueStatus, addKeywordsToQueue } = require('./modules/scheduler');
 const http = require('http');
 
 // Destructure from env — log on startup to confirm Railway has the vars
@@ -136,8 +136,32 @@ if (process.argv.includes('--manual')) {
                                     processKeywordDirect(kw);
                                 }
 
+                            } else if (text === 'เช็คคิว') {
+                                const status = await getQueueStatus();
+                                let msg = `📊 สถานะคิวปัจจุบัน:\n- รอดำเนินการ: ${status.pending} บทความ\n- โพสต์สำเร็จ: ${status.done} บทความ\n- ล้มเหลว: ${status.failed} บทความ`;
+                                if (status.nextKeyword) msg += `\n\n📌 คิวถัดไป: "${status.nextKeyword}"`;
+                                await replyToLine(replyToken, msg, LINE_CHANNEL_ACCESS_TOKEN);
+
+                            } else if (text.startsWith('เพิ่มคิว:')) {
+                                const kwString = text.replace('เพิ่มคิว:', '').trim();
+                                if (!kwString) {
+                                    await replyToLine(replyToken, '❌ กรุณาระบุคีย์เวิร์ด เช่น\nเพิ่มคิว: บัตรพนักงาน ชลบุรี, สายคล้องคอ ภูเก็ต', LINE_CHANNEL_ACCESS_TOKEN);
+                                } else {
+                                    const kwList = kwString.split(',').map(k => k.trim());
+                                    const count = await addKeywordsToQueue(kwList);
+                                    await replyToLine(replyToken, `✅ เพิ่ม ${count} คีย์เวิร์ดลงในระบบเรียบร้อยแล้ว`, LINE_CHANNEL_ACCESS_TOKEN);
+                                }
+
+                            } else if (text === 'ล่าสุด') {
+                                const latest = await getLatestPost(WP_URL);
+                                if (latest) {
+                                    await replyToLine(replyToken, `📰 บทความล่าสุด:\n${latest.title}\n${latest.link}`, LINE_CHANNEL_ACCESS_TOKEN);
+                                } else {
+                                    await replyToLine(replyToken, '❌ ไม่พบบทความล่าสุด หรือดึงข้อมูลไม่ได้', LINE_CHANNEL_ACCESS_TOKEN);
+                                }
+
                             } else if (text === 'เมนู') {
-                                const menu = `📱 คำสั่งบอท SEO:\n\n1️⃣ โพสต์คิวถัดไป\nดึง keyword ถัดไปจากตารางมาโพสต์ทันที\n\n2️⃣ เขียนบทความ: [keyword]\nเช่น: เขียนบทความ: สายคล้องคอ เชียงใหม่\n\nบอทจะแจ้งกลับเมื่อโพสต์เสร็จครับ`;
+                                const menu = `📱 คำสั่งบอท SEO:\n\n1️⃣ โพสต์คิวถัดไป\nดึง keyword ถัดไปมาโพสต์ทันที\n\n2️⃣ เขียนบทความ: [keyword]\nแทรกคิวด่วน เช่น เขียนบทความ: สายคล้องคอ\n\n3️⃣ เช็คคิว\nดูสถานะคิวทั้งหมด\n\n4️⃣ เพิ่มคิว: [kw1], [kw2]\nเติมคีย์เวิร์ดเข้าระบบ\n\n5️⃣ ล่าสุด\nดูลิงก์บทความล่าสุด`;
                                 await replyToLine(replyToken, menu, LINE_CHANNEL_ACCESS_TOKEN);
 
                             } else {

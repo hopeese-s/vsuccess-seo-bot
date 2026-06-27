@@ -109,4 +109,27 @@ async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass) {
     }
 }
 
-module.exports = { postToWordPress };
+async function getLatestPost(wpUrl) {
+    try {
+        const baseUrl = wpUrl.replace(/\/wp-admin\/?$/, '').replace(/\/$/, '');
+        const response = await fetch(`${baseUrl}/wp-json/wp/v2/posts?per_page=1&status=publish`, {
+            headers: { 'User-Agent': 'VSEOBot/1.0' }
+        });
+        
+        if (response.ok) {
+            const posts = await response.json();
+            if (posts && posts.length > 0) {
+                return {
+                    title: posts[0].title.rendered,
+                    link: posts[0].link
+                };
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error('Error fetching latest post:', error.message);
+        return null;
+    }
+}
+
+module.exports = { postToWordPress, getLatestPost };

@@ -57,4 +57,47 @@ async function markKeywordAsFailed(allRows, index) {
     await writeCalendar(allRows);
 }
 
-module.exports = { getNextPendingKeyword, markKeywordAsDone, markKeywordAsFailed };
+// Get queue status
+async function getQueueStatus() {
+    const rows = await readCalendar();
+    let pending = 0;
+    let done = 0;
+    let failed = 0;
+    let nextKeyword = null;
+
+    for (const row of rows) {
+        if (row.Status === 'Pending') {
+            pending++;
+            if (!nextKeyword) nextKeyword = row.Keyword;
+        } else if (row.Status === 'Done') {
+            done++;
+        } else if (row.Status === 'Failed') {
+            failed++;
+        }
+    }
+
+    return { pending, done, failed, nextKeyword };
+}
+
+// Add new keywords to queue
+async function addKeywordsToQueue(keywordsList) {
+    const rows = await readCalendar();
+    
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+
+    const newRows = keywordsList.map(kw => ({
+        Keyword: kw.trim(),
+        Date: dateStr,
+        Status: 'Pending'
+    })).filter(kw => kw.Keyword !== '');
+
+    if (newRows.length > 0) {
+        const combinedRows = rows.concat(newRows);
+        await writeCalendar(combinedRows);
+        return newRows.length;
+    }
+    return 0;
+}
+
+module.exports = { getNextPendingKeyword, markKeywordAsDone, markKeywordAsFailed, getQueueStatus, addKeywordsToQueue, readCalendar };
