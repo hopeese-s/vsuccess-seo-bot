@@ -63,7 +63,7 @@ H2: FAQ คำถามที่พบบ่อย (เน้นตอบแบ�
 
     try {
         const completion = await openai.chat.completions.create({
-            model: 'deepseek-chat',
+            model: 'deepseek-v4-pro',
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
