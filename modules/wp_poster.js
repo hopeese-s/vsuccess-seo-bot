@@ -89,7 +89,13 @@ async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass) {
             })
         });
 
-        const data = await response.json();
+        const responseText = await response.text();
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            throw new Error(`WP Server Error (HTTP ${response.status}). Expected JSON but got HTML. This usually means the website is down or blocking requests (e.g., Cloudflare). Snapshot: ${responseText.substring(0, 150)}...`);
+        }
 
         if (!response.ok) {
             throw new Error(data.message || `HTTP ${response.status}: Failed to post`);
