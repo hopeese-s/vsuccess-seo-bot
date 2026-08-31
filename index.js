@@ -102,9 +102,15 @@ async function processNextArticle() {
 if (process.argv.includes('--manual')) {
     processNextArticle().then(() => process.exit(0));
 } else {
-    // Cron: daily 09:00 Bangkok time (UTC+7 = 02:00 UTC)
+    // Cron 1: daily 09:00 Bangkok time (UTC+7 = 02:00 UTC)
     cron.schedule('0 2 * * *', () => {
         console.log('[CRON] 09:00 Bangkok — running auto post...');
+        processNextArticle();
+    });
+
+    // Cron 2: daily 14:00 Bangkok time (UTC+7 = 07:00 UTC)
+    cron.schedule('0 7 * * *', () => {
+        console.log('[CRON] 14:00 Bangkok — running auto post...');
         processNextArticle();
     });
 
