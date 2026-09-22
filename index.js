@@ -17,7 +17,10 @@ const http = require('http');
 
 // Destructure from env — log on startup to confirm Railway has the vars
 const {
+    OPENCODE_API_KEY,
     DEEPSEEK_API_KEY,
+    AI_MODEL,
+    AI_BASE_URL,
     LINE_CHANNEL_ACCESS_TOKEN,
     LINE_CHANNEL_SECRET,
     WP_URL,
@@ -25,11 +28,18 @@ const {
     WP_PASS
 } = process.env;
 
+const effectiveAiKey = OPENCODE_API_KEY || DEEPSEEK_API_KEY;
+const effectiveAiModel = AI_MODEL || 'deepseek-v4-pro';
+const aiProvider = OPENCODE_API_KEY ? 'OpenCode Go' : 'DeepSeek Official';
+
 // Startup check — will show in Railway logs
 console.log('=== V-Success SEO Bot Starting ===');
 console.log('Node version:', process.version);
+console.log('AI Provider:', aiProvider);
+console.log('AI Model:', effectiveAiModel);
 console.log('ENV check:');
-console.log('  DEEPSEEK_API_KEY:', DEEPSEEK_API_KEY ? '✅ SET' : '❌ MISSING');
+console.log('  OPENCODE_API_KEY:', OPENCODE_API_KEY ? '✅ SET' : '❌ NOT SET');
+console.log('  DEEPSEEK_API_KEY:', DEEPSEEK_API_KEY ? '✅ SET' : '❌ NOT SET');
 console.log('  LINE_CHANNEL_ACCESS_TOKEN:', LINE_CHANNEL_ACCESS_TOKEN ? '✅ SET' : '❌ MISSING');
 console.log('  LINE_CHANNEL_SECRET:', LINE_CHANNEL_SECRET ? '✅ SET' : '❌ MISSING');
 console.log('  WP_URL:', WP_URL || '❌ MISSING');
@@ -40,7 +50,7 @@ console.log('==================================');
 async function processKeywordDirect(keyword) {
     console.log(`[${new Date().toLocaleString()}] Starting direct post for: "${keyword}"`);
     try {
-        const article = await generateArticle(keyword, DEEPSEEK_API_KEY);
+        const article = await generateArticle(keyword, effectiveAiKey);
         console.log(`Article generated: ${article.title}`);
 
         const postUrl = await postToWordPress(article.title, article.content, keyword, WP_URL, WP_USER, WP_PASS);
@@ -72,7 +82,7 @@ async function processNextArticle() {
         const keyword = pendingItem.row.Keyword;
         console.log(`Keyword: "${keyword}"`);
 
-        const article = await generateArticle(keyword, DEEPSEEK_API_KEY);
+        const article = await generateArticle(keyword, effectiveAiKey);
         console.log(`Generated: ${article.title}`);
 
         const postUrl = await postToWordPress(article.title, article.content, keyword, WP_URL, WP_USER, WP_PASS);

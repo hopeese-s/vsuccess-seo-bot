@@ -1,9 +1,16 @@
 const { OpenAI } = require('openai');
 
 async function generateArticle(keyword, apiKey) {
+    const effectiveApiKey = process.env.OPENCODE_API_KEY || process.env.DEEPSEEK_API_KEY || apiKey;
+    const isOpencode = (effectiveApiKey && effectiveApiKey.startsWith('oc_')) || Boolean(process.env.OPENCODE_API_KEY);
+    const defaultBaseURL = isOpencode ? 'https://opencode.ai/zen/go/v1' : 'https://api.deepseek.com';
+    const baseURL = process.env.AI_BASE_URL || defaultBaseURL;
+    const model = process.env.AI_MODEL || 'deepseek-v4-pro';
+
     const openai = new OpenAI({
-        baseURL: 'https://api.deepseek.com',
-        apiKey: apiKey
+        baseURL: baseURL,
+        apiKey: effectiveApiKey,
+        defaultHeaders: isOpencode ? { 'x-opencode-session': 'vsuccess-seo-bot' } : {}
     });
 
     const systemPrompt = `คุณคือผู้เชี่ยวชาญด้าน Local SEO ระดับสูงและนักเขียน Content ภาษาไทยมืออาชีพ สำหรับธุรกิจ "V-Success Printing" เว็บไซต์ vsuccessprint.co.th — รับทำบัตรพนักงาน สายคล้องคอโพลีเอสเตอร์ บัตรพลาสติก และสินค้าพรีเมี่ยมครบวงจร ไม่มีขั้นต่ำ
@@ -63,7 +70,7 @@ H2: FAQ คำถามที่พบบ่อย (เน้นตอบแบ�
 
     try {
         const completion = await openai.chat.completions.create({
-            model: 'deepseek-v4-pro',
+            model: model,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
