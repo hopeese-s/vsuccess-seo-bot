@@ -10,6 +10,7 @@ async function generateArticle(keyword, apiKey) {
     const openai = new OpenAI({
         baseURL: baseURL,
         apiKey: effectiveApiKey,
+        fetch: globalThis.fetch,
         defaultHeaders: isOpencode ? { 'x-opencode-session': 'vsuccess-seo-bot' } : {}
     });
 

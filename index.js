@@ -47,6 +47,14 @@ console.log('  WP_USER:', WP_USER ? '✅ SET' : '❌ MISSING');
 console.log('  WP_PASS:', WP_PASS ? '✅ SET' : '❌ MISSING');
 console.log('==================================');
 
+function formatErrorMessage(error) {
+    let msg = error.message;
+    if (error.cause) {
+        msg += ` (${error.cause.code || error.cause.message || error.cause})`;
+    }
+    return msg;
+}
+
 async function processKeywordDirect(keyword) {
     console.log(`[${new Date().toLocaleString()}] Starting direct post for: "${keyword}"`);
     try {
@@ -60,9 +68,9 @@ async function processKeywordDirect(keyword) {
         await sendNotification(message, LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET);
 
     } catch (error) {
-        console.error('processKeywordDirect error:', error.message);
+        console.error('processKeywordDirect error:', error);
         try {
-            await sendNotification(`❌ Error: ${error.message}`, LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET);
+            await sendNotification(`❌ Error: ${formatErrorMessage(error)}`, LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET);
         } catch (_) {}
     }
 }
@@ -95,10 +103,10 @@ async function processNextArticle() {
         console.log('Done.');
 
     } catch (error) {
-        console.error('processNextArticle error:', error.message);
+        console.error('processNextArticle error:', error);
         let errorMsg = `❌ Error:\n`;
         if (pendingItem) errorMsg += `Keyword: ${pendingItem.row.Keyword}\n`;
-        errorMsg += error.message;
+        errorMsg += formatErrorMessage(error);
         try {
             await sendNotification(errorMsg, LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET);
         } catch (_) {}
