@@ -13,6 +13,7 @@ const { generateArticle } = require('./modules/seo_generator');
 const { postToWordPress, getLatestPost } = require('./modules/wp_poster');
 const { sendNotification, replyToLine } = require('./modules/line_notifier');
 const { getNextPendingKeyword, markKeywordAsDone, markKeywordAsFailed, getQueueStatus, addKeywordsToQueue } = require('./modules/scheduler');
+const { isDuplicateKeyword } = require('./modules/internal_linker');
 const http = require('http');
 
 // Destructure from env — log on startup to confirm Railway has the vars
@@ -76,7 +77,19 @@ async function processKeywordDirect(keyword) {
         const article = await generateArticle(keyword, effectiveAiKey);
         console.log(`Article generated: ${article.title}`);
 
-        const postUrl = await postToWordPress(article.title, article.content, keyword, WP_URL, WP_USER, WP_PASS);
+        const postUrl = await postToWordPress(
+            article.title,
+            article.content,
+            keyword,
+            WP_URL,
+            WP_USER,
+            WP_PASS,
+            {
+                faqs: article.faqs,
+                seoTitle: article.seoTitle,
+                metaDescription: article.metaDescription
+            }
+        );
         console.log(`Posted: ${postUrl}`);
 
         const message = `✅ โพสต์บทความสำเร็จ!\n\nKeyword: ${keyword}\nหัวข้อ: ${article.title}\n\nอ่านได้ที่: ${postUrl}`;
@@ -105,10 +118,31 @@ async function processNextArticle() {
         const keyword = pendingItem.row.Keyword;
         console.log(`Keyword: "${keyword}"`);
 
+        // Check for duplicate keyword to prevent content cannibalization
+        const isDuplicate = await isDuplicateKeyword(keyword, WP_URL);
+        if (isDuplicate) {
+            console.log(`⚠️ Keyword "${keyword}" is already published or duplicate detected. Skipping.`);
+            await markKeywordAsDone(pendingItem.allRows, pendingItem.index);
+            await sendNotification(`⚠️ ข้าม Keyword "${keyword}" เนื่องจากมีบทความหัวข้อนี้ในเว็บแล้ว (ป้องกันเนื้อหาซ้ำ)`, LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET);
+            return;
+        }
+
         const article = await generateArticle(keyword, effectiveAiKey);
         console.log(`Generated: ${article.title}`);
 
-        const postUrl = await postToWordPress(article.title, article.content, keyword, WP_URL, WP_USER, WP_PASS);
+        const postUrl = await postToWordPress(
+            article.title,
+            article.content,
+            keyword,
+            WP_URL,
+            WP_USER,
+            WP_PASS,
+            {
+                faqs: article.faqs,
+                seoTitle: article.seoTitle,
+                metaDescription: article.metaDescription
+            }
+        );
         console.log(`Posted: ${postUrl}`);
 
         const message = `✅ อัปเดตบทความใหม่สำเร็จ!\n\nKeyword: ${keyword}\nหัวข้อ: ${article.title}\n\nอ่านได้ที่: ${postUrl}`;

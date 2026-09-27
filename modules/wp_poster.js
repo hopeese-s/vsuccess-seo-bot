@@ -1,9 +1,97 @@
 const path = require('path');
+const { findRelatedPosts, buildRelatedPostsHtml } = require('./internal_linker');
+
+/**
+ * Builds Schema.org JSON-LD (Article + FAQPage + LocalBusiness)
+ */
+function generateSchema(title, keyword, faqs, permalink, imageUrl) {
+    const nowIso = new Date().toISOString();
+    const schemaGraph = [
+        {
+            "@type": "Article",
+            "@id": `${permalink}#article`,
+            "isPartOf": { "@id": permalink },
+            "headline": title,
+            "description": `${keyword} — V-Success Printing โรงงานผลิตสายคล้องคอโพลีเอสเตอร์และบัตรพนักงานคุณภาพสูง ส่งทั่วไทย ไม่มีขั้นต่ำ`,
+            "image": imageUrl,
+            "datePublished": nowIso,
+            "dateModified": nowIso,
+            "mainEntityOfPage": permalink,
+            "author": {
+                "@type": "Organization",
+                "name": "V-Success Printing",
+                "url": "https://www.vsuccessprint.co.th"
+            },
+            "publisher": {
+                "@type": "Organization",
+                "name": "V-Success Printing",
+                "url": "https://www.vsuccessprint.co.th",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": imageUrl
+                }
+            }
+        },
+        {
+            "@type": "LocalBusiness",
+            "@id": "https://www.vsuccessprint.co.th/#localbusiness",
+            "name": "V-Success Printing (โรงงานผลิตสายคล้องคอ บัตรพนักงาน)",
+            "url": "https://www.vsuccessprint.co.th",
+            "telephone": "+66818483108",
+            "priceRange": "฿฿",
+            "address": {
+                "@type": "PostalAddress",
+                "addressCountry": "TH"
+            },
+            "areaServed": [
+                { "@type": "Country", "name": "Thailand" }
+            ],
+            "openingHoursSpecification": {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+                "opens": "08:30",
+                "closes": "17:30"
+            }
+        }
+    ];
+
+    if (faqs && Array.isArray(faqs) && faqs.length > 0) {
+        schemaGraph.push({
+            "@type": "FAQPage",
+            "@id": `${permalink}#faq`,
+            "mainEntity": faqs.map(f => ({
+                "@type": "Question",
+                "name": f.question,
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": f.answer
+                }
+            }))
+        });
+    }
+
+    return `\n\n<script type="application/ld+json">\n${JSON.stringify({ "@context": "https://schema.org", "@graph": schemaGraph }, null, 2)}\n</script>\n`;
+}
 
 // Use Application Password for WordPress REST API (no browser needed)
-async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass) {
+async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass, extraOptions = {}) {
     try {
         const baseUrl = wpUrl.replace(/\/wp-admin\/?$/, '').replace(/\/$/, '');
+
+        // Extract optional parameters
+        let faqs = [];
+        let seoTitle = title;
+        let metaDescription = '';
+
+        if (Array.isArray(extraOptions)) {
+            faqs = extraOptions;
+            if (arguments.length > 7) seoTitle = arguments[7] || title;
+            if (arguments.length > 8) metaDescription = arguments[8] || '';
+        } else if (extraOptions && typeof extraOptions === 'object') {
+            faqs = extraOptions.faqs || [];
+            seoTitle = extraOptions.seoTitle || title;
+            metaDescription = extraOptions.metaDescription || '';
+        }
 
         console.log('Searching for related product image...');
 
@@ -42,7 +130,6 @@ async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass) {
             }
 
             if (products && products.length > 0) {
-                // Filter out products that don't have images
                 const productsWithImages = products.filter(p => 
                     p.featured_media &&
                     p._embedded &&
@@ -51,8 +138,6 @@ async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass) {
                 );
 
                 if (productsWithImages.length > 0) {
-                    // 100% Random selection from all valid search results!
-                    // This guarantees we don't get the same image if there are multiple products in the category.
                     const randomIndex = Math.floor(Math.random() * productsWithImages.length);
                     const selected = productsWithImages[randomIndex];
 
@@ -68,33 +153,77 @@ async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass) {
             console.log('Image search error (using default):', imgErr.message);
         }
 
-        const imageHtml = `<p style="text-align: center;"><img class="aligncenter size-large wp-image-${mediaId}" src="${imageUrl}" alt="${keyword}" /></p>\n\n`;
-        const finalContent = imageHtml + content;
+        // Semantic Thai Alt Text for Image SEO
+        const altText = `ภาพตัวอย่าง ${keyword} — โรงงานผลิต V-Success Printing ส่งทั่วไทย ไม่มีขั้นต่ำ`;
+        const imageHtml = `<p style="text-align: center;"><img class="aligncenter size-large wp-image-${mediaId}" src="${imageUrl}" alt="${altText}" /></p>\n\n`;
+
+        // 2. Fetch related posts for Internal Linking
+        let internalLinksHtml = '';
+        try {
+            const related = await findRelatedPosts(keyword, baseUrl, title);
+            if (related && related.length > 0) {
+                internalLinksHtml = buildRelatedPostsHtml(related);
+                console.log(`[InternalLinker] Injected ${related.length} internal links.`);
+            }
+        } catch (linkErr) {
+            console.log('[InternalLinker] Internal link check failed, continuing without:', linkErr.message);
+        }
+
+        // 3. Generate Schema JSON-LD
+        const schemaHtml = generateSchema(seoTitle || title, keyword, faqs, `${baseUrl}/`, imageUrl);
+
+        // Combine all components into final content
+        const finalContent = imageHtml + content + internalLinksHtml + schemaHtml;
 
         console.log(`Posting article via REST API with Application Password...`);
 
-        // 2. Post directly via WordPress REST API using Application Password
+        // 4. Post directly via WordPress REST API using Application Password
         const credentials = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
-        const response = await fetch(`${baseUrl}/wp-json/wp/v2/posts`, {
+        
+        const postPayload = {
+            title: title,
+            content: finalContent,
+            status: 'publish',
+            featured_media: mediaId,
+            meta: {
+                rank_math_title: seoTitle || title,
+                rank_math_description: metaDescription || `${keyword} — V-Success Printing โรงงานผลิตสายคล้องคอ บัตรพนักงาน ส่งทั่วไทย ไม่มีขั้นต่ำ`,
+                rank_math_focus_keyword: keyword
+            }
+        };
+
+        let response = await fetch(`${baseUrl}/wp-json/wp/v2/posts`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Basic ${credentials}`
             },
-            body: JSON.stringify({
-                title: title,
-                content: finalContent,
-                status: 'publish',
-                featured_media: mediaId
-            })
+            body: JSON.stringify(postPayload)
         });
+
+        // Self-healing: If WP returns 400 because 'meta' fields are not registered in REST API, retry without meta
+        if (response.status === 400) {
+            const errorClone = await response.clone().text();
+            if (errorClone.includes('meta') || errorClone.includes('rank_math')) {
+                console.log('WordPress REST API does not support direct meta fields. Retrying without meta payload...');
+                delete postPayload.meta;
+                response = await fetch(`${baseUrl}/wp-json/wp/v2/posts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Basic ${credentials}`
+                    },
+                    body: JSON.stringify(postPayload)
+                });
+            }
+        }
 
         const responseText = await response.text();
         let data;
         try {
             data = JSON.parse(responseText);
         } catch (e) {
-            throw new Error(`WP Server Error (HTTP ${response.status}). Expected JSON but got HTML. This usually means the website is down or blocking requests (e.g., Cloudflare). Snapshot: ${responseText.substring(0, 150)}...`);
+            throw new Error(`WP Server Error (HTTP ${response.status}). Expected JSON but got HTML. This usually means the website is down or blocking requests (e.g., Cloudflare/DNS). Snapshot: ${responseText.substring(0, 150)}...`);
         }
 
         if (!response.ok) {
@@ -133,4 +262,4 @@ async function getLatestPost(wpUrl) {
     }
 }
 
-module.exports = { postToWordPress, getLatestPost };
+module.exports = { postToWordPress, getLatestPost, generateSchema };
