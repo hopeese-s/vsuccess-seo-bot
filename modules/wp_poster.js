@@ -73,6 +73,56 @@ function generateSchema(title, keyword, faqs, permalink, imageUrl) {
     return `\n\n<script type="application/ld+json">\n${JSON.stringify({ "@context": "https://schema.org", "@graph": schemaGraph }, null, 2)}\n</script>\n`;
 }
 
+/**
+ * Matches relevant WordPress Tag IDs based on target keyword
+ */
+function matchWordPressTags(keyword) {
+    const kw = keyword.toLowerCase();
+    const tagIds = [];
+
+    if (kw.includes('สาย') || kw.includes('สายคล้อง') || kw.includes('lanyard')) {
+        tagIds.push(1013); // สายคล้องคอ
+        tagIds.push(1015); // สายคล้องไม่มีขั้นต่ำ
+        tagIds.push(1022); // สายห้อยบัตร
+    }
+    if (kw.includes('บัตรพนักงาน') || kw.includes('ป้ายพนักงาน') || kw.includes('ทำบัตร')) {
+        tagIds.push(1014); // บัตรพนักงาน
+        tagIds.push(1017); // บัตรพีวีซี
+    }
+    if (kw.includes('นักเรียน') || kw.includes('นักศึกษา')) {
+        tagIds.push(1020); // บัตรนักเรียน
+    }
+    if (kw.includes('ข้าราชการ')) {
+        tagIds.push(1021); // บัตรข้าราชการ
+    }
+    if (kw.includes('สะสมแต้ม')) {
+        tagIds.push(1023); // บัตรสะสมแต้ม
+    }
+    if (kw.includes('จอดรถ')) {
+        tagIds.push(1019); // บัตรจอดรถ
+    }
+
+    // Geo tags
+    if (kw.includes('กรุงเทพ')) {
+        tagIds.push(914); // ร้านทำบัตรพนักงานกรุงเทพ
+        tagIds.push(950); // ทำบัตรพนักงานบริษัทกรุงเทพ
+    }
+    if (kw.includes('นนทบุรี')) tagIds.push(952);
+    if (kw.includes('ปทุมธานี')) tagIds.push(951);
+    if (kw.includes('สมุทรสาคร')) tagIds.push(953);
+    if (kw.includes('นครปฐม')) tagIds.push(955);
+    if (kw.includes('ใกล้ฉัน')) {
+        tagIds.push(913); // ร้านทำบัตรพนักงานใกล้ฉัน
+        tagIds.push(949); // ทำบัตรพนักงานบริษัทใกล้ฉัน
+    }
+
+    if (tagIds.length === 0) {
+        tagIds.push(1013, 1014);
+    }
+
+    return [...new Set(tagIds)];
+}
+
 // Use Application Password for WordPress REST API (no browser needed)
 async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass, extraOptions = {}) {
     try {
@@ -180,11 +230,16 @@ async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass, e
         // 4. Post directly via WordPress REST API using Application Password
         const credentials = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
         
+        const matchedTags = matchWordPressTags(keyword);
+        console.log(`Matched tags for "${keyword}":`, matchedTags);
+
         const postPayload = {
             title: title,
             content: finalContent,
             status: 'publish',
             featured_media: mediaId,
+            categories: [32], // Category 32 = "บทความ" (seo)
+            tags: matchedTags,
             meta: {
                 rank_math_title: seoTitle || title,
                 rank_math_description: metaDescription || `${keyword} — V-Success Printing โรงงานผลิตสายคล้องคอ บัตรพนักงาน ส่งทั่วไทย ไม่มีขั้นต่ำ`,
@@ -201,12 +256,22 @@ async function postToWordPress(title, content, keyword, wpUrl, wpUser, wpPass, e
             body: JSON.stringify(postPayload)
         });
 
-        // Self-healing: If WP returns 400 because 'meta' fields are not registered in REST API, retry without meta
+        // Self-healing: If WP returns 400, inspect error and retry cleanly
         if (response.status === 400) {
             const errorClone = await response.clone().text();
+            let retried = false;
             if (errorClone.includes('meta') || errorClone.includes('rank_math')) {
                 console.log('WordPress REST API does not support direct meta fields. Retrying without meta payload...');
                 delete postPayload.meta;
+                retried = true;
+            }
+            if (errorClone.includes('tags') || errorClone.includes('categories')) {
+                console.log('WordPress REST API taxonomy error. Retrying without taxonomy...');
+                delete postPayload.tags;
+                delete postPayload.categories;
+                retried = true;
+            }
+            if (retried) {
                 response = await fetch(`${baseUrl}/wp-json/wp/v2/posts`, {
                     method: 'POST',
                     headers: {
@@ -262,4 +327,4 @@ async function getLatestPost(wpUrl) {
     }
 }
 
-module.exports = { postToWordPress, getLatestPost, generateSchema };
+module.exports = { postToWordPress, getLatestPost, generateSchema, matchWordPressTags };

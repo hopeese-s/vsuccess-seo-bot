@@ -55,6 +55,21 @@ function extractFAQs(htmlContent) {
     return faqs;
 }
 
+const PERSONAS = [
+    {
+        role: "เจ้าของโรงงาน V-Success Printing (ประสบการณ์กว่า 10 ปี)",
+        style: "เป็นกันเอง จริงใจ พูดตรงประเด็น มั่นใจ เน้นเรื่องความคุ้มค่า คุณภาพเนื้อผ้าโพลีเอสเตอร์ 100% สกรีนสีคมชัดไม่ตก และความยืดหยุ่นที่ 1 ชิ้นก็ผลิตให้ได้ ไม่มีขั้นต่ำ สั่งง่ายผ่านออนไลน์"
+    },
+    {
+        role: "ผู้เชี่ยวชาญด้านมาตรฐานงานพิมพ์และระบบบัตรองค์กร",
+        style: "มืออาชีพ ชัดเจน อธิบายมาตรฐานระบบพิมพ์ซับลิเมชั่นที่สีฝังแน่นในเนื้อผ้า ขนาดสายมาตรฐาน 10, 15, 20, 25 มม. และบัตรพลาสติก PVC กันน้ำ แข็งแรงทนทาน เหมาะสำหรับองค์กร บริษัท และโรงเรียน"
+    },
+    {
+        role: "ที่ปรึกษาฝ่ายจัดซื้อและผลิตสินค้าพรีเมี่ยมสำหรับ HR/ฝ่ายบริหาร",
+        style: "เข้าใจความกังวลของคนทำงาน เรื่องงบประมาณ ความรวดเร็วในการจัดส่งถึงหน้าออฟฟิศใน 3-7 วันทำการ การสั่งชิ้นตัวอย่างเพื่อตรวจงานก่อน และบริการออกแบบฟรี"
+    }
+];
+
 async function generateArticle(keyword, apiKey) {
     const effectiveApiKey = process.env.GEMINI_API_KEY || process.env.OPENCODE_API_KEY || process.env.DEEPSEEK_API_KEY || apiKey;
     const isGemini = (effectiveApiKey && effectiveApiKey.startsWith('AIzaSy')) || Boolean(process.env.GEMINI_API_KEY);
@@ -64,7 +79,14 @@ async function generateArticle(keyword, apiKey) {
     if (isGemini) defaultModel = 'gemini-3.5-flash-lite';
     const model = process.env.AI_MODEL || defaultModel;
 
+    // Pick dynamic persona for semantic diversity
+    const persona = PERSONAS[Math.floor(Math.random() * PERSONAS.length)];
+
     const systemPrompt = `คุณคือผู้เชี่ยวชาญด้าน SEO/AEO (Answer Engine Optimization) ระดับสูง และนักเขียน Content ภาษาไทยมืออาชีพ สำหรับธุรกิจ "V-Success Printing" เว็บไซต์ vsuccessprint.co.th — โรงงานรับทำบัตรพนักงาน สายคล้องคอโพลีเอสเตอร์ บัตรพลาสติก และสินค้าพรีเมี่ยมครบวงจร ไม่มีขั้นต่ำ
+
+=== บุคลิกการเขียน (Persona) ประจำบทความนี้ ===
+คุณกำลังเขียนในฐานะ: ${persona.role}
+แนวทางการสื่อสาร: ${persona.style}
 
 === ข้อมูลธุรกิจที่ต้องจำ ===
 สายคล้องคอ: วัสดุโพลีเอสเตอร์ (Polyester) 100% เท่านั้น พิมพ์สกรีน/ซับลิเมชั่น สีคมชัด ไม่ตก ไม่มีเนื้อผ้าชนิดอื่น ขนาดสายมีตั้งแต่ 10, 15, 20, 25 มิลลิเมตร (10-25 มิล) เท่านั้น
@@ -84,11 +106,14 @@ async function generateArticle(keyword, apiKey) {
 9. AEO FAQ FORMAT: ส่วนท้ายของบทความ ต้องมีหัวข้อ FAQ 3-4 ข้อ โดยใช้รูปแบบ:
    <h3>คำถาม?</h3>
    <p>คำตอบตรงประเด็น ชัดเจน 45-75 คำ ที่สมบูรณ์ในตัวเอง</p>
+   **บังคับสำหรับ FAQ ข้อแรก:** ต้องถามเจาะจงเรื่อง "ราคาเท่าไหร่" และ "มีขั้นต่ำไหม" เช่น:
+   <h3>สั่งทำ${keyword} ราคาเท่าไหร่ มีขั้นต่ำไหม สั่ง 1 ชิ้นได้หรือเปล่า?</h3>
+   และตอบว่าไม่มีขั้นต่ำ ทำเท่าไหร่ก็ได้ ราคาขึ้นอยู่กับจำนวน ยิ่งสั่งเยอะยิ่งคุ้มค่าในราคาระดับโรงงาน
 10. CALL-TO-ACTION: ปิดท้ายด้วย CTA ชัดเจน ให้ทัก LINE: @vsuccessprint หรือโทร: 0818483108
 
 === ข้อกำหนดการเขียน (Anti-AI Tone & Fact Check) ===
 - **ห้ามใช้คำขึ้นต้นหรือคำเชื่อมแบบ AI เด็ดขาด** เช่น "ในยุคปัจจุบันที่...", "ปฏิเสธไม่ได้ว่า...", "อย่างไรก็ตาม...", "นอกจากนี้...", "สรุปได้ว่า...", "ในโลกที่...", "ทั้งนี้..."
-- เขียนด้วยภาษาพูดกึ่งทางการ (Conversational Tone) เหมือนเจ้าของโรงงานกำลังแนะนำลูกค้าจริงๆ เป็นกันเอง มั่นใจ ไม่อ้อมค้อม
+- เขียนด้วยภาษาพูดกึ่งทางการ (Conversational Tone) เหมือนคนที่มีประสบการณ์กำลังแนะนำลูกค้าจริงๆ เป็นกันเอง มั่นใจ ไม่อ้อมค้อม
 - ไม่ต้องเกริ่นนำน้ำท่วมทุ่ง ให้เข้าประเด็นทันทีว่าเราคือใคร ช่วยแก้ปัญหาอะไรให้ลูกค้าได้บ้าง
 - แทนที่จะใช้คำว่า "สรุปได้ว่า" ในตอนท้าย ให้ใช้คำที่เป็นธรรมชาติแทน เช่น "ถ้าคุณกำลังมองหา...", "สั่งง่ายๆ แค่ทักไลน์..."
 - **กฎเหล็กเรื่องราคา:** ห้ามระบุจำนวนตัวเลขแปลกๆ หรือเขียนว่า "ตั้งแต่ 1 ใบไปจนถึง 10,000 ใบ ราคาเท่ากัน" เด็ดขาด ให้เขียนแค่ว่า "ไม่มีขั้นต่ำ ทำเท่าไหร่ก็ได้ ราคาขึ้นอยู่กับจำนวน" (ยิ่งสั่งเยอะ ราคายิ่งถูกลง)
@@ -102,7 +127,7 @@ async function generateArticle(keyword, apiKey) {
     const userPrompt = `เขียนบทความ SEO/AEO สำหรับ Keyword: "${keyword}"
 
 ตัวอย่างรูปแบบ Title ที่ต้องการ (Local SEO):
-- vsuccessprint.co.th | รับทำบัตรพนักงาน เชียงใหม่ — สายคล้องบัตรใกล้ฉัน ส่งทั่วประเทศ ไม่มีขั้นต่ำ
+- vsuccessprint.co.th | รับทำบัตรพนักงาน เชียงใหม่ — สายคล้องบัตรใกล้ฉัน ส่งทั่วประเทศ ไม่มีขั้นต่ำ ออกแบบฟรี
 - vsuccessprint.co.th | สายคล้องคอโพลีเอสเตอร์ ขอนแก่น — ส่งทั่วประเทศ ราคาโรงงาน ออกแบบฟรี
 - vsuccessprint.co.th | ทำบัตรนักเรียน บัตรข้าราชการ สงขลา — สายคล้องบัตรใกล้ฉัน ส่งทั่วประเทศ 1 ชิ้นก็ทำได้
 
@@ -116,7 +141,7 @@ async function generateArticle(keyword, apiKey) {
 <h2>[แทรก Keyword] ขั้นตอนการสั่งผลิต — ส่งตรงถึงมือใน 3-7 วันทำการ</h2>
 (อธิบายขั้นตอนสั่งออนไลน์ง่ายๆ 4 ขั้นตอน)
 <h2>คำถามที่พบบ่อย (FAQ) เกี่ยวกับ${keyword}</h2>
-(คำถาม-คำตอบ AEO 3-4 ข้อ รูปแบบ <h3>คำถาม?</h3><p>คำตอบ 45-75 คำ</p> เช่น ราคาเท่าไหร่, ไม่มีขั้นต่ำจริงไหม, กี่วันได้ของ)
+(คำถาม-คำตอบ AEO 3-4 ข้อ รูปแบบ <h3>คำถาม?</h3><p>คำตอบ 45-75 คำ</p> โดยข้อแรกบังคับถาม: "สั่งทำ${keyword} ราคาเท่าไหร่ มีขั้นต่ำไหม สั่ง 1 ชิ้นได้หรือเปล่า?")
 <h2>สั่งทำ${keyword} กับ V-Success Printing วันนี้</h2>
 (บทสรุปเป็นธรรมชาติ + Call to Action สั่งผ่าน LINE: @vsuccessprint หรือโทร: 0818483108)
 
@@ -129,9 +154,32 @@ async function generateArticle(keyword, apiKey) {
 - ถ้า keyword เป็นเรื่องบัตร ให้ระบุประเภทบัตรที่รองรับอย่างน้อย 4 ประเภท`;
 
     try {
+        // === Stage 1: Strategy & Outline Synthesis ===
+        let outlineContext = '';
+        try {
+            const outlinePrompt = `สำหรับ Keyword: "${keyword}"
+ช่วยสรุปประเด็นหลัก 3-4 บรรทัด สำหรับการเขียนบทความ:
+1. Pain point ของลูกค้าในพื้นที่เป้าหมาย
+2. สถิติ 3 ข้อที่ต้องเน้น (ลูกค้าองค์กร 500+ แห่ง, ขนส่ง 3-7 วัน, สาย 10, 15, 20, 25 มม.)
+3. คำถาม FAQ หลักที่คนค้นหาบ่อยที่สุด`;
+
+            if (isGemini) {
+                outlineContext = await callGemini('คุณคือที่ปรึกษาวางโครงสร้างเนื้อหา SEO', outlinePrompt, effectiveApiKey, model);
+            }
+            console.log(`[Stage 1] Outline strategy generated for "${keyword}". Persona: ${persona.role}`);
+        } catch (stage1Err) {
+            console.log(`[Stage 1] Outline skipped (${stage1Err.message}), proceeding to full article.`);
+        }
+
+        // === Stage 2: Deep Content Generation ===
+        let enrichedUserPrompt = userPrompt;
+        if (outlineContext) {
+            enrichedUserPrompt += `\n\n=== บริบทเพิ่มเติมจากโครงร่างกลยุทธ์ ===\n${outlineContext}`;
+        }
+
         let rawOutput = '';
         if (isGemini) {
-            rawOutput = await callGemini(systemPrompt, userPrompt, effectiveApiKey, model);
+            rawOutput = await callGemini(systemPrompt, enrichedUserPrompt, effectiveApiKey, model);
         } else {
             const defaultBaseURL = isOpencode ? 'https://opencode.ai/zen/go/v1' : 'https://api.deepseek.com';
             const baseURL = process.env.AI_BASE_URL || defaultBaseURL;
@@ -145,7 +193,7 @@ async function generateArticle(keyword, apiKey) {
                 model: model,
                 messages: [
                     { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
+                    { role: 'user', content: enrichedUserPrompt }
                 ]
             });
             rawOutput = completion.choices[0].message.content;
@@ -186,4 +234,4 @@ async function generateArticle(keyword, apiKey) {
     }
 }
 
-module.exports = { generateArticle, extractFAQs };
+module.exports = { generateArticle, extractFAQs, PERSONAS };
