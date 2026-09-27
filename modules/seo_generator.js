@@ -1,18 +1,51 @@
 const { OpenAI } = require('openai');
 
-async function generateArticle(keyword, apiKey) {
-    const effectiveApiKey = process.env.OPENCODE_API_KEY || process.env.DEEPSEEK_API_KEY || apiKey;
-    const isOpencode = (effectiveApiKey && effectiveApiKey.startsWith('oc_')) || Boolean(process.env.OPENCODE_API_KEY);
-    const defaultBaseURL = isOpencode ? 'https://opencode.ai/zen/go/v1' : 'https://api.deepseek.com';
-    const baseURL = process.env.AI_BASE_URL || defaultBaseURL;
-    const model = process.env.AI_MODEL || 'deepseek-v4-pro';
+async function callGemini(systemPrompt, userPrompt, apiKey, preferredModel = 'gemini-3.5-flash-lite') {
+    const candidateModels = [preferredModel, 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-pro-preview'];
+    const uniqueModels = [...new Set(candidateModels.filter(Boolean))];
 
-    const openai = new OpenAI({
-        baseURL: baseURL,
-        apiKey: effectiveApiKey,
-        fetch: globalThis.fetch,
-        defaultHeaders: isOpencode ? { 'x-opencode-session': 'vsuccess-seo-bot' } : {}
-    });
+    let lastError = null;
+    for (const model of uniqueModels) {
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        contents: [{ parts: [{ text: userPrompt }] }]
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    return data.candidates[0].content.parts[0].text;
+                }
+
+                const errText = await res.text();
+                lastError = new Error(`Gemini API [${model}] Error (HTTP ${res.status}): ${errText.substring(0, 150)}`);
+                if (res.status === 503) {
+                    await new Promise(r => setTimeout(r, 2000));
+                } else {
+                    break;
+                }
+            } catch (err) {
+                lastError = err;
+            }
+        }
+    }
+    throw lastError || new Error('Failed to generate article with Gemini');
+}
+
+async function generateArticle(keyword, apiKey) {
+    const effectiveApiKey = process.env.GEMINI_API_KEY || process.env.OPENCODE_API_KEY || process.env.DEEPSEEK_API_KEY || apiKey;
+    const isGemini = (effectiveApiKey && effectiveApiKey.startsWith('AIzaSy')) || Boolean(process.env.GEMINI_API_KEY);
+    const isOpencode = (effectiveApiKey && effectiveApiKey.startsWith('oc_')) || Boolean(process.env.OPENCODE_API_KEY);
+
+    let defaultModel = 'deepseek-v4-pro';
+    if (isGemini) defaultModel = 'gemini-3.5-flash-lite';
+    const model = process.env.AI_MODEL || defaultModel;
 
     const systemPrompt = `คุณคือผู้เชี่ยวชาญด้าน Local SEO ระดับสูงและนักเขียน Content ภาษาไทยมืออาชีพ สำหรับธุรกิจ "V-Success Printing" เว็บไซต์ vsuccessprint.co.th — รับทำบัตรพนักงาน สายคล้องคอโพลีเอสเตอร์ บัตรพลาสติก และสินค้าพรีเมี่ยมครบวงจร ไม่มีขั้นต่ำ
 
@@ -70,15 +103,27 @@ H2: FAQ คำถามที่พบบ่อย (เน้นตอบแบ�
 - ถ้า keyword เป็นเรื่องบัตร ให้ระบุประเภทบัตรที่รองรับอย่างน้อย 4 ประเภท`;
 
     try {
-        const completion = await openai.chat.completions.create({
-            model: model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ]
-        });
-
-        const rawOutput = completion.choices[0].message.content;
+        let rawOutput = '';
+        if (isGemini) {
+            rawOutput = await callGemini(systemPrompt, userPrompt, effectiveApiKey, model);
+        } else {
+            const defaultBaseURL = isOpencode ? 'https://opencode.ai/zen/go/v1' : 'https://api.deepseek.com';
+            const baseURL = process.env.AI_BASE_URL || defaultBaseURL;
+            const openai = new OpenAI({
+                baseURL: baseURL,
+                apiKey: effectiveApiKey,
+                fetch: globalThis.fetch,
+                defaultHeaders: isOpencode ? { 'x-opencode-session': 'vsuccess-seo-bot' } : {}
+            });
+            const completion = await openai.chat.completions.create({
+                model: model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ]
+            });
+            rawOutput = completion.choices[0].message.content;
+        }
 
         let title = keyword;
         let content = rawOutput;

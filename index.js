@@ -17,6 +17,7 @@ const http = require('http');
 
 // Destructure from env — log on startup to confirm Railway has the vars
 const {
+    GEMINI_API_KEY,
     OPENCODE_API_KEY,
     DEEPSEEK_API_KEY,
     AI_MODEL,
@@ -28,9 +29,22 @@ const {
     WP_PASS
 } = process.env;
 
-const effectiveAiKey = OPENCODE_API_KEY || DEEPSEEK_API_KEY;
-const effectiveAiModel = AI_MODEL || 'deepseek-v4-pro';
-const aiProvider = OPENCODE_API_KEY ? 'OpenCode Go' : 'DeepSeek Official';
+const effectiveAiKey = GEMINI_API_KEY || OPENCODE_API_KEY || DEEPSEEK_API_KEY;
+let aiProvider = 'None';
+let defaultModel = 'deepseek-v4-pro';
+
+if (GEMINI_API_KEY || (effectiveAiKey && effectiveAiKey.startsWith('AIzaSy'))) {
+    aiProvider = 'Google Gemini (Free)';
+    defaultModel = 'gemini-3.5-flash-lite';
+} else if (OPENCODE_API_KEY || (effectiveAiKey && effectiveAiKey.startsWith('oc_'))) {
+    aiProvider = 'OpenCode Go';
+    defaultModel = 'deepseek-v4-pro';
+} else if (DEEPSEEK_API_KEY) {
+    aiProvider = 'DeepSeek Official';
+    defaultModel = 'deepseek-v4-pro';
+}
+
+const effectiveAiModel = AI_MODEL || defaultModel;
 
 // Startup check — will show in Railway logs
 console.log('=== V-Success SEO Bot Starting ===');
@@ -38,6 +52,7 @@ console.log('Node version:', process.version);
 console.log('AI Provider:', aiProvider);
 console.log('AI Model:', effectiveAiModel);
 console.log('ENV check:');
+console.log('  GEMINI_API_KEY:', GEMINI_API_KEY ? '✅ SET' : (effectiveAiKey && effectiveAiKey.startsWith('AIzaSy') ? '✅ SET' : '❌ NOT SET'));
 console.log('  OPENCODE_API_KEY:', OPENCODE_API_KEY ? '✅ SET' : '❌ NOT SET');
 console.log('  DEEPSEEK_API_KEY:', DEEPSEEK_API_KEY ? '✅ SET' : '❌ NOT SET');
 console.log('  LINE_CHANNEL_ACCESS_TOKEN:', LINE_CHANNEL_ACCESS_TOKEN ? '✅ SET' : '❌ MISSING');
