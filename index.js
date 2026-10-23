@@ -196,7 +196,7 @@ if (process.argv.includes('--manual')) {
                             const text = event.message.text.trim();
                             const replyToken = event.replyToken;
 
-                            if (text === 'โพสต์คิวถัดไป') {
+                            if (text === 'โพสต์คิวถัดไป' || text === 'รันคิวถัดไป' || text === 'รันคิว' || text === 'โพสต์คิว' || text === 'รันคิวถุดำป') {
                                 await replyToLine(replyToken, '⏳ กำลังดึงคิวถัดไปมาโพสต์... รอสักครู่ครับ', LINE_CHANNEL_ACCESS_TOKEN);
                                 processNextArticle();
 
@@ -209,7 +209,7 @@ if (process.argv.includes('--manual')) {
                                     processKeywordDirect(kw);
                                 }
 
-                            } else if (text === 'เช็คคิว') {
+                            } else if (text === 'เช็คคิว' || text === 'ดูคิว') {
                                 const status = await getQueueStatus();
                                 let msg = `📊 สถานะคิวปัจจุบัน:\n- รอดำเนินการ: ${status.pending} บทความ\n- โพสต์สำเร็จ: ${status.done} บทความ\n- ล้มเหลว: ${status.failed} บทความ`;
                                 if (status.nextKeyword) msg += `\n\n📌 คิวถัดไป: "${status.nextKeyword}"`;
@@ -283,7 +283,7 @@ if (process.argv.includes('--manual')) {
                     res.end('Error');
                 }
             });
-        } else if (req.method === 'GET' && req.url === '/') {
+        } else if (req.method === 'GET' && (req.url === '/' || req.url === '/health' || req.url === '/ping')) {
             // Health check endpoint for Railway
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ status: 'ok', bot: 'V-Success SEO Bot', time: new Date().toISOString() }));
